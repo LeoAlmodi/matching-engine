@@ -69,17 +69,9 @@ Done:
 - [x] Repository, CMake, GoogleTest and Google Benchmark set up; placeholder test and benchmark pass in both builds.
 - [x] `specs/spec.md` v1 written, with all ambiguities resolved (D-01 to D-22).
 - [x] `specs/plan.md` written.
+- [x] `specs/tasks.md` written (T-01 to T-20).
 
-Next:
-
-- [ ] `specs/tasks.md`
-- [ ] Implementation of v1, task by task
-- [ ] Randomized invariant tests (R-INV-*), optionally against a naive reference engine
-- [ ] Benchmark v1: throughput and p50/p99/p99.9 latency
-- [ ] README with results and requirement → test table
-- [ ] CI (GitHub Actions) running the debug build and tests
-
-Update this section at the end of every completed step.
+Next: implement `specs/tasks.md` in order, starting at the first unchecked task. Per-task progress is tracked in the Status section of `specs/tasks.md`; update it when a task is done.
 
 ## Future versions
 
