@@ -41,6 +41,7 @@ Out of scope for v1:
 
 - **R-CFG-01.** The engine is configured with `MAX_PRICE`, an integer ≥ 1. Valid prices are `1..MAX_PRICE` inclusive.
 - **R-CFG-02.** The engine is configured with `MAX_QTY`, an integer ≥ 1. Valid quantities are `1..MAX_QTY` inclusive.
+- **R-CFG-03.** The engine is configured with `MAX_ORDERS`, an integer ≥ 1: the maximum number of orders that can be accepted in a session, counting every accepted order whether it is still resting, filled or canceled.
 
 ## 4. Commands
 
@@ -59,8 +60,9 @@ Out of scope for v1:
 - **R-VAL-02.** For a LIMIT order, if `price < 1` or `price > MAX_PRICE`, the order is rejected with reason `INVALID_PRICE`.
 - **R-VAL-03.** For a MARKET order, the `price` field is ignored and never causes a rejection.
 - **R-VAL-04.** If `order_id` belongs to an order previously accepted in this session, the order is rejected with reason `DUPLICATE_ORDER_ID`. This holds even if that order has since been filled or canceled.
-- **R-VAL-05.** Checks are applied in the order quantity, price, duplicate id. Only the first failing check is reported, as a single `REJECTED` event.
+- **R-VAL-05.** Checks are applied in the order quantity, price, duplicate id, capacity. Only the first failing check is reported, as a single `REJECTED` event.
 - **R-VAL-06.** A rejected order changes no state. Its `order_id` is not considered used.
+- **R-VAL-07.** If `MAX_ORDERS` orders have already been accepted in this session, the order is rejected with reason `CAPACITY_EXCEEDED`.
 
 ## 6. Book
 
@@ -116,7 +118,7 @@ Out of scope for v1:
   | `CANCELED` | `order_id`, `canceled_quantity`, `reason` (USER, MARKET_REMAINDER) |
   | `MODIFIED` | `order_id`, `price`, `leaves` |
 
-- **R-EVT-02.** Rejection reasons: `INVALID_QUANTITY`, `INVALID_PRICE`, `DUPLICATE_ORDER_ID`, `NO_LIQUIDITY`, `UNKNOWN_ORDER`.
+- **R-EVT-02.** Rejection reasons: `INVALID_QUANTITY`, `INVALID_PRICE`, `DUPLICATE_ORDER_ID`, `CAPACITY_EXCEEDED`, `NO_LIQUIDITY`, `UNKNOWN_ORDER`.
 - **R-EVT-03.** Event order for an accepted `NEW`: `ACCEPTED`, then one `TRADE` per match in matching order, then `CANCELED` (MARKET_REMAINDER) if applicable.
 - **R-EVT-04.** Event order for a valid `MODIFY`: `MODIFIED`, then one `TRADE` per match in matching order.
 - **R-EVT-05.** An order is fully executed when a `TRADE` reports its leaves as 0, and partially executed otherwise.
@@ -152,6 +154,7 @@ These hold after every command is processed.
 | Order sweeping several price levels | R-MATCH-02 |
 | Modify that crosses the book | R-MOD-07 |
 | Duplicate order id | R-VAL-04 |
+| Session order capacity reached | R-VAL-07 |
 
 ## 15. Decision log
 
@@ -178,3 +181,4 @@ These hold after every command is processed.
 | D-19 | Validation precedence is fixed (R-VAL-05, R-MOD-04). |
 | D-20 | Orders have no owner in v1; self-trade prevention is out of scope (§1). |
 | D-21 | The engine exposes best bid/ask, level quantity and order state (§12). |
+| D-22 | Accepted orders per session are capped by `MAX_ORDERS`; beyond it, NEW is rejected with `CAPACITY_EXCEEDED` (R-CFG-03, R-VAL-07). |
