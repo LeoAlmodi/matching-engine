@@ -159,7 +159,7 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 ## Status
 
 - [x] T-01 CI
-- [ ] T-02 Types, config and events
+- [x] T-02 Types, config and events
 - [ ] T-03 OrderPool
 - [ ] T-04 IdMap
 - [ ] T-05 BookSide and Level
