@@ -160,7 +160,7 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 
 - [x] T-01 CI
 - [x] T-02 Types, config and events
-- [ ] T-03 OrderPool
+- [x] T-03 OrderPool
 - [ ] T-04 IdMap
 - [ ] T-05 BookSide and Level
 - [ ] T-06 Engine skeleton, queries and test support

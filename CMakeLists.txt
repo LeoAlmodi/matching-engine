@@ -15,7 +15,7 @@ FetchContent_Declare(benchmark
   URL https://github.com/google/benchmark/archive/refs/tags/v1.9.1.tar.gz)
 FetchContent_MakeAvailable(googletest benchmark)
 
-add_library(me src/engine.cpp)
+add_library(me src/engine.cpp src/order_pool.cpp)
 target_include_directories(me PUBLIC include)
 target_compile_options(me PRIVATE -Wall -Wextra -Wpedantic -Werror)
 if(ME_SANITIZE)
@@ -24,7 +24,7 @@ if(ME_SANITIZE)
 endif()
 
 enable_testing()
-add_executable(tests tests/test_smoke.cpp tests/test_types.cpp)
+add_executable(tests tests/test_smoke.cpp tests/test_types.cpp tests/test_order_pool.cpp)
 target_include_directories(tests PRIVATE tests)
 target_link_libraries(tests PRIVATE me GTest::gtest_main)
 include(GoogleTest)
