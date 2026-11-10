@@ -61,23 +61,25 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 - **Work:** `Engine<Sink>` constructor with config validation, the three command methods as stubs, all queries, and `visit_level`. Test support: `check_invariants` (R-INV-01, R-INV-03 to R-INV-06) and `Ledger` (R-INV-02), both processing every event type.
 - **Done when:** invalid configs throw at construction; queries on an empty book return empty or zero; `check_invariants` passes on an empty book.
 
+T-08 comes before T-07: validation of duplicate ids and capacity needs orders that were already accepted.
+
+### T-08. Resting limit orders
+
+- **Covers:** R-BOOK-01, R-BOOK-02, R-BOOK-03, R-EVT-03 (ACCEPTED); plan §8.1 steps 3 and 5.
+- **Files:** `include/me/engine.hpp`, `tests/test_book.cpp`.
+- **Done when:** tests show non-crossing limit orders on both sides emit `ACCEPTED` and appear in queries with the right price, leaves and level totals, ordered by price then arrival.
+
 ### T-07. Validation of NEW
 
 - **Covers:** R-VAL-01 to R-VAL-07, R-EVT-02, R-CMD-05; plan §8.1 step 1.
 - **Files:** `include/me/engine.hpp`, `tests/test_val.cpp`.
-- **Done when:** tests cover each rejection reason, the boundaries (0, 1, max, max + 1 for price and quantity, negatives), the precedence between failing checks, that a rejected order changes no state, that a rejected id can be reused, and that capacity counts filled and canceled orders.
-
-### T-08. Resting limit orders
-
-- **Covers:** R-BOOK-01, R-BOOK-02, R-BOOK-03, R-EVT-03 (ACCEPTED); plan §8.1.
-- **Files:** `include/me/engine.hpp`, `tests/test_book.cpp`.
-- **Done when:** tests show non-crossing limit orders on both sides emit `ACCEPTED` and appear in queries with the right price, leaves and level totals, ordered by price then arrival.
+- **Done when:** tests cover each rejection reason, the boundaries (0, 1, max, max + 1 for price and quantity, negatives), the precedence between failing checks, that a rejected order changes no state, that a rejected id can be reused, and that duplicate id and capacity checks count resting orders. Filled and canceled orders are covered by T-09 and T-11.
 
 ### T-09. Limit order matching
 
 - **Covers:** R-MATCH-01 to R-MATCH-06, R-EVT-03, R-EVT-05, R-CMD-03, R-INV-01, R-INV-03; plan §8.2.
 - **Files:** `include/me/engine.hpp`, `tests/test_match.cpp`.
-- **Done when:** tests cover exact-price crossing, aggressor better than the best price (trade at passive price), partial fill of the aggressor (remainder rests), partial fill of the passive order, FIFO within a level, sweeping several levels, and the exact event sequence and fields in each case. `check_invariants` and the ledger pass after every command.
+- **Done when:** tests cover exact-price crossing, aggressor better than the best price (trade at passive price), partial fill of the aggressor (remainder rests), partial fill of the passive order, FIFO within a level, sweeping several levels, and the exact event sequence and fields in each case. Also that a filled order's id is rejected as `DUPLICATE_ORDER_ID` and still counts toward capacity (R-VAL-04, R-VAL-07). `check_invariants` and the ledger pass after every command.
 
 ### T-10. Market orders
 
@@ -89,7 +91,7 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 
 - **Covers:** R-CXL-01, R-CXL-02; plan §8.3.
 - **Files:** `include/me/engine.hpp`, `tests/test_cxl.cpp`.
-- **Done when:** tests cover canceling the head, middle and tail of a level, the last order of the best level (best price moves), a partially filled order (canceled quantity equals leaves), and rejection for never-accepted, filled and already-canceled ids.
+- **Done when:** tests cover canceling the head, middle and tail of a level, the last order of the best level (best price moves), a partially filled order (canceled quantity equals leaves), and rejection for never-accepted, filled and already-canceled ids. Also that a canceled order's id is rejected as `DUPLICATE_ORDER_ID` and still counts toward capacity (R-VAL-04, R-VAL-07).
 
 ### T-12. Modification
 
@@ -163,13 +165,13 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 - [x] T-03 OrderPool
 - [x] T-04 IdMap
 - [x] T-05 BookSide and Level
-- [ ] T-06 Engine skeleton, queries and test support
-- [ ] T-07 Validation of NEW
-- [ ] T-08 Resting limit orders
-- [ ] T-09 Limit order matching
-- [ ] T-10 Market orders
-- [ ] T-11 Cancellation
-- [ ] T-12 Modification
+- [x] T-06 Engine skeleton, queries and test support
+- [x] T-08 Resting limit orders
+- [x] T-07 Validation of NEW
+- [x] T-09 Limit order matching
+- [x] T-10 Market orders
+- [x] T-11 Cancellation
+- [x] T-12 Modification
 - [ ] T-13 Randomized invariant test
 - [ ] T-14 Spec coverage check
 - [ ] T-15 Reference engine
