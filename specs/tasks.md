@@ -162,7 +162,7 @@ A task is done only when every item under "Done when" holds. If a task reveals a
 - [x] T-02 Types, config and events
 - [x] T-03 OrderPool
 - [x] T-04 IdMap
-- [ ] T-05 BookSide and Level
+- [x] T-05 BookSide and Level
 - [ ] T-06 Engine skeleton, queries and test support
 - [ ] T-07 Validation of NEW
 - [ ] T-08 Resting limit orders
