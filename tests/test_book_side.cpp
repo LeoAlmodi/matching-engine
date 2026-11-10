@@ -230,6 +230,31 @@ TEST_F(BookSideTest, ExtremePrices) {
   EXPECT_EQ(asks.level(kMaxPrice).total, 20);
 }
 
+// Plan §8.2, §8.4: a partial fill or an in-place decrease reduces leaves and the level total
+// together (R-INV-06), and the order keeps its position.
+TEST_F(BookSideTest, R_INV_06_ReduceKeepsPositionAndTotal) {
+  add(asks, 1, 100, 10);
+  const Index b = add(asks, 2, 100, 20);
+  add(asks, 3, 100, 30);
+  asks.reduce(b, 15);
+  EXPECT_EQ(pool[b].leaves, 5);
+  EXPECT_EQ(asks.level(100).total, 45);
+  EXPECT_EQ(ids_at(asks, 100), (Ids{1, 2, 3}));
+  EXPECT_EQ(asks.best(), 100);
+}
+
+// A full fill reduces leaves to 0 first, then unlinks; the total must end at the sum of the rest.
+TEST_F(BookSideTest, ReduceToZeroThenUnlink) {
+  const Index a = add(bids, 1, 100, 10);
+  const Index b = add(bids, 2, 100, 20);
+  bids.reduce(a, 10);
+  EXPECT_EQ(pool[a].leaves, 0);
+  EXPECT_EQ(bids.level(100).total, 20);
+  bids.unlink(a);
+  EXPECT_EQ(bids.level(100).total, 20);
+  EXPECT_EQ(bids.front(), b);
+}
+
 TEST_F(BookSideTest, SidesAreIndependent) {
   add(bids, 1, 100, 10);
   add(asks, 2, 100, 20);

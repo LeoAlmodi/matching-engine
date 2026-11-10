@@ -25,7 +25,11 @@ endif()
 
 enable_testing()
 add_executable(tests tests/test_smoke.cpp tests/test_types.cpp tests/test_order_pool.cpp
-  tests/test_id_map.cpp tests/test_book_side.cpp)
+  tests/test_id_map.cpp tests/test_book_side.cpp
+  tests/test_engine_basic.cpp tests/test_book.cpp
+  tests/test_val.cpp tests/test_match.cpp
+  tests/test_mkt.cpp tests/test_cxl.cpp
+  tests/test_mod.cpp)
 target_include_directories(tests PRIVATE tests)
 target_link_libraries(tests PRIVATE me GTest::gtest_main)
 include(GoogleTest)

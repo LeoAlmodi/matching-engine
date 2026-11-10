@@ -70,6 +70,16 @@ public:
     }
   }
 
+  // Reduces a resting order's leaves and its level total by `qty`, keeping its position (plan
+  // §8.2, §8.4). Leaves may reach 0; the caller then unlinks the order.
+  void reduce(Index idx, Qty qty) {
+    OrderNode &n = pool_[idx];
+    assert(n.side == side_);
+    assert(qty >= 0 && qty <= n.leaves);
+    n.leaves -= qty;
+    levels_[static_cast<std::size_t>(n.price)].total -= qty;
+  }
+
   // Oldest order at the best price, or NIL if the side is empty.
   Index front() const { return best_ == 0 ? NIL : levels_[static_cast<std::size_t>(best_)].head; }
 
