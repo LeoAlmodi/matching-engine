@@ -65,6 +65,7 @@ private:
     }
     EXPECT_FALSE(emitted.empty()) << "R-CMD-05: every command produces at least one event";
     EXPECT_TRUE(check_invariants(engine, ledger));
+    ledger.clear_touched();
     return emitted;
   }
 };

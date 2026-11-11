@@ -2,11 +2,12 @@
 
 #include "support/recording_sink.hpp"
 
+#include <cstddef>
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -41,8 +42,17 @@ public:
     std::visit([this](const auto &e) { on(e); }, event);
   }
 
-  const std::map<OrderId, OrderRecord> &orders() const { return orders_; }
+  const std::unordered_map<OrderId, OrderRecord> &orders() const { return orders_; }
   const std::vector<std::string> &errors() const { return errors_; }
+
+  // Number of accepted orders with leaves > 0, kept up to date on every event. After a command is
+  // fully processed, these are exactly the orders that must rest in the book.
+  std::size_t with_leaves() const { return with_leaves_; }
+
+  // Ids whose accounting changed since the last clear_touched(), so check_invariants can confirm
+  // that an order whose leaves reached 0 is no longer reported as resting (R-QRY-03).
+  const std::vector<OrderId> &touched() const { return touched_; }
+  void clear_touched() { touched_.clear(); }
 
 private:
   struct PendingNew {
@@ -64,6 +74,8 @@ private:
     }
     const PendingNew &n = *pending_;
     orders_[n.id] = OrderRecord{n.side, n.type, n.price, n.qty, 0, 0, next_seq_++};
+    ++with_leaves_; // R-VAL-01 guarantees qty >= 1
+    touched_.push_back(n.id);
     pending_.reset();
   }
 
@@ -83,7 +95,7 @@ private:
     if (r == nullptr) {
       return;
     }
-    r->canceled += e.canceled_quantity;
+    change(e.order_id, *r, [&] { r->canceled += e.canceled_quantity; });
     if (r->leaves() != 0) {
       error() << "CANCELED id " << e.order_id << " qty " << e.canceled_quantity << " leaves "
               << r->leaves() << " behind";
@@ -97,11 +109,13 @@ private:
     }
     const Qty old = r->leaves();
     // R-MOD-06
-    if (e.leaves > old) {
-      r->requested += e.leaves - old;
-    } else {
-      r->canceled += old - e.leaves;
-    }
+    change(e.order_id, *r, [&] {
+      if (e.leaves > old) {
+        r->requested += e.leaves - old;
+      } else {
+        r->canceled += old - e.leaves;
+      }
+    });
     // R-MOD-05: a price change or an increase loses priority.
     if (e.price != r->price || e.leaves > old) {
       r->seq = next_seq_++;
@@ -114,10 +128,26 @@ private:
     if (r == nullptr) {
       return;
     }
-    r->executed += qty;
+    change(id, *r, [&] { r->executed += qty; });
     if (r->leaves() != reported_leaves) {
       error() << "TRADE " << role << " id " << id << " reports leaves " << reported_leaves
               << ", expected " << r->leaves();
+    }
+  }
+
+  // Applies a change to a record, keeping with_leaves_ current and flagging negative leaves.
+  template <class F> void change(OrderId id, const OrderRecord &r, F &&f) {
+    const bool before = r.leaves() > 0;
+    f();
+    touched_.push_back(id);
+    const bool after = r.leaves() > 0;
+    if (before && !after) {
+      --with_leaves_;
+    } else if (!before && after) {
+      ++with_leaves_;
+    }
+    if (r.leaves() < 0) {
+      error() << "R-INV-02: order " << id << " has negative leaves " << r.leaves();
     }
   }
 
@@ -142,10 +172,12 @@ private:
   };
   ErrorStream error() { return ErrorStream{errors_, {}}; }
 
-  std::map<OrderId, OrderRecord> orders_;
+  std::unordered_map<OrderId, OrderRecord> orders_;
   std::vector<std::string> errors_;
   std::optional<PendingNew> pending_;
   std::uint64_t next_seq_ = 0;
+  std::size_t with_leaves_ = 0;
+  std::vector<OrderId> touched_;
 };
 
 } // namespace me::test

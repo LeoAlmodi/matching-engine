@@ -35,5 +35,15 @@ target_link_libraries(tests PRIVATE me GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(tests)
 
+# Randomized and differential tests: millions of commands with checks after each one. A separate
+# executable so all of it, including the header-only engine and test support, is optimized even in
+# the sanitized debug build (sanitizers and asserts stay on). Inline functions are shared across
+# translation units, so optimizing only some files of one executable would not be reliable.
+add_executable(tests_random tests/test_random.cpp tests/test_differential.cpp)
+target_include_directories(tests_random PRIVATE tests)
+target_compile_options(tests_random PRIVATE -O2)
+target_link_libraries(tests_random PRIVATE me GTest::gtest_main)
+gtest_discover_tests(tests_random DISCOVERY_TIMEOUT 30)
+
 add_executable(bench bench/bench_smoke.cpp)
 target_link_libraries(bench PRIVATE me benchmark::benchmark_main)

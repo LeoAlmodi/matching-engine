@@ -96,22 +96,21 @@ template <class Sink>
     fail("R-INV-01: book is crossed, bid ", best_price[0], " ask ", best_price[1]);
   }
 
-  // R-INV-02: every accepted order with leaves rests, and every other order does not.
-  std::size_t expected_resting = 0;
-  for (const auto &[id, r] : ledger.orders()) {
-    if (r.leaves() < 0) {
-      fail("R-INV-02: order ", id, " has negative leaves ", r.leaves());
-    } else if (r.leaves() > 0) {
-      ++expected_resting;
-      if (!engine.order_state(id)) {
-        fail("R-INV-02: order ", id, " should rest with leaves ", r.leaves());
-      }
-    } else if (engine.order_state(id)) {
-      fail("R-INV-02: order ", id, " has no leaves but is resting");
+  // R-INV-02: every accepted order with leaves rests, and every other order does not. Each order
+  // visited above was matched against a ledger order with the same leaves (>= 1), so the visited
+  // orders are a subset of the ledger's orders with leaves; equal counts make the sets equal.
+  // Negative leaves are reported by the ledger itself.
+  // An order the last command filled or canceled must no longer be resting (R-QRY-03). Without
+  // this, a stale id could point at a freed pool slot and corrupt the book later.
+  for (OrderId id : ledger.touched()) {
+    const auto it = ledger.orders().find(id);
+    if (it != ledger.orders().end() && it->second.leaves() == 0 && engine.order_state(id)) {
+      fail("R-INV-02: order ", id, " has no leaves but is still resting");
     }
   }
-  if (resting != expected_resting) {
-    fail("book holds ", resting, " orders, ledger expects ", expected_resting);
+  if (resting != ledger.with_leaves()) {
+    fail("R-INV-02: book holds ", resting, " orders, ledger expects ", ledger.with_leaves(),
+         " with leaves");
   }
 
   if (failures.empty()) {
