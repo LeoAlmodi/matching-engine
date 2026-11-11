@@ -179,4 +179,4 @@ T-08 comes before T-07: validation of duplicate ids and capacity needs orders th
 - [x] T-17 Throughput benchmark
 - [x] T-18 Latency measurement
 - [x] T-19 Baseline and targets
-- [ ] T-20 README
+- [x] T-20 README
