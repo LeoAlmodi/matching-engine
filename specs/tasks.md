@@ -175,8 +175,8 @@ T-08 comes before T-07: validation of duplicate ids and capacity needs orders th
 - [x] T-13 Randomized invariant test
 - [x] T-14 Spec coverage check
 - [x] T-15 Reference engine
-- [ ] T-16 Benchmark command generator
-- [ ] T-17 Throughput benchmark
-- [ ] T-18 Latency measurement
-- [ ] T-19 Baseline and targets
+- [x] T-16 Benchmark command generator
+- [x] T-17 Throughput benchmark
+- [x] T-18 Latency measurement
+- [x] T-19 Baseline and targets
 - [ ] T-20 README
