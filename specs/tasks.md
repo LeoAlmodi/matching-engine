@@ -172,9 +172,9 @@ T-08 comes before T-07: validation of duplicate ids and capacity needs orders th
 - [x] T-10 Market orders
 - [x] T-11 Cancellation
 - [x] T-12 Modification
-- [ ] T-13 Randomized invariant test
-- [ ] T-14 Spec coverage check
-- [ ] T-15 Reference engine
+- [x] T-13 Randomized invariant test
+- [x] T-14 Spec coverage check
+- [x] T-15 Reference engine
 - [ ] T-16 Benchmark command generator
 - [ ] T-17 Throughput benchmark
 - [ ] T-18 Latency measurement
