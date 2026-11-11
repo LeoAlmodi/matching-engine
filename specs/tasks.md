@@ -158,6 +158,15 @@ T-08 comes before T-07: validation of duplicate ids and capacity needs orders th
 - **Work:** what the project is, the SDD workflow, how to build and test, design summary, benchmark results, and a requirement → test table (generated from T-14's script).
 - **Done when:** a reader can build, test and benchmark from the README alone.
 
+## Phase 6: Optimizations
+
+### T-21. Profile and huge pages
+
+- **Covers:** plan §10 (environment), plan §11.
+- **Files:** `specs/plan.md`, `README.md`.
+- **Work:** profile the measured stream with hardware counters, test the candidates of §11 against the profile, adopt only what moves toward the targets, and record every result, including the rejected ones.
+- **Done when:** plan §11 has the profile and a decision for every candidate, and plan §10 and the README have the numbers after the adopted change, measured with the method of §10.
+
 ## Status
 
 - [x] T-01 CI
@@ -180,3 +189,4 @@ T-08 comes before T-07: validation of duplicate ids and capacity needs orders th
 - [x] T-18 Latency measurement
 - [x] T-19 Baseline and targets
 - [x] T-20 README
+- [x] T-21 Profile and huge pages

@@ -228,7 +228,7 @@ Quantity accounting (R-MOD-06) needs no stored state in the engine: it is recons
 | limit, market, cancel, modify | 100% of one type | 250'000 | 200'000 |
 - **Throughput.** Google Benchmark target `bench`, with `CountingSink`, reporting commands per second.
 - **Latency.** A separate executable `latency` (custom `main`, no framework): timestamps each command with `rdtsc` (converted to ns with a calibrated frequency) into a pre-allocated array, then sorts and reports p50, p99, p99.9 and max. Warm-up pass before measuring.
-- **Environment.** Release build with `-O3 -march=native`, process pinned to one core with `taskset`, CPU model and frequency recorded with every result.
+- **Environment.** Release build with `-O3 -march=native`, process pinned to one core with `taskset`, CPU model and frequency recorded with every result. Since T-21, benchmarks also run with `GLIBC_TUNABLES=glibc.malloc.hugetlb=1`, so the engine's large preallocated arrays are backed by transparent huge pages (an environment setting; the library stays standard-only), and Google Benchmark runs with `--benchmark_min_warmup_time=1` so the first workload is not measured while the CPU is still ramping up.
 - **Baseline** (T-19). Intel Core i7-1165G7 (4 cores, TSC 2.8 GHz, turbo up to 4.7 GHz, `powersave` governor), Linux 7.0, GCC 13.3, `-O3 -march=native`, pinned with `taskset -c 2`. Throughput is the median of 5 repetitions; latency is the median of 5 runs.
 
 | Workload | Throughput |
@@ -249,14 +249,58 @@ Latency includes about 13 ns of timestamp cost. The `lfence` around each timesta
   - Non-regression: mix throughput ≥ 12 M cmd/s, p99 ≤ 560 ns, p99.9 ≤ 800 ns (baseline with a 10% noise margin). Any change that breaks these is a regression.
   - Goal for the optimizations in §11: mix throughput ≥ 20 M cmd/s and p99 ≤ 400 ns. Each optimization is kept only if it moves toward this goal.
   - `max` is not a target: on a laptop with no isolated core it is dominated by interrupts and page faults.
+- **After T-21** (huge pages, same machine and method, with warm-up). Measured interleaved with a control run on 4 KB pages in the same session, shown in parentheses.
 
-## 11. Deferred optimizations
+| Workload | Throughput |
+|---|---|
+| mix | 14.9 M cmd/s (12.9) |
+| limit | 15.4 M cmd/s (14.0) |
+| market | 6.7 M cmd/s (6.1) |
+| cancel | 13.5 M cmd/s (11.7) |
+| modify | 10.5 M cmd/s (9.2) |
 
-Only after a baseline exists and profiling justifies them, each as its own task with before and after numbers:
+| Latency, mix | p50 | p99 | p99.9 |
+|---|---|---|---|
+| ns | 206 (219) | 483 (511) | 694 (733) |
 
-- Bitmap of occupied levels to find the next best price without scanning.
-- Hot/cold split of `OrderNode` fields and cache-line alignment.
-- Prefetching the next passive order in the match loop.
+Non-regression targets hold. The goal (≥ 20 M cmd/s, p99 ≤ 400 ns) is not reached; §11 explains why the remaining candidates do not get there.
+
+## 11. Optimizations
+
+Each optimization needs profiling evidence first and is its own task with before and after numbers.
+
+### 11.1 Profile of the baseline (T-21)
+
+Hardware counters read with `perf_event_open` around the measured stream only (not generation or pre-fill), cycles per command on the machine of §10:
+
+| Workload | Cycles | Instructions | IPC | LLC misses | dTLB misses |
+|---|---|---|---|---|---|
+| mix | 171 | 140 | 0.81 | 0.91 | 0.91 |
+| limit | 182 | 161 | 0.89 | 0.54 | 0.61 |
+| market | 423 | 262 | 0.62 | 1.67 | 1.42 |
+| cancel | 167 | 93 | 0.56 | 1.50 | 1.31 |
+| modify | 233 | 123 | 0.53 | 1.36 | 1.43 |
+
+The engine is memory bound. With `MAX_ORDERS` around one million, the `IdMap` is 32 MB and the pool 40 MB, both larger than the 12 MB L3. Sampling puts 45% (mix) to 57% (limit) of all cycles on the first probe of `IdMap` (§5.4): the hash spreads ids over the table on purpose, so almost every lookup is a cache and TLB miss.
+
+### 11.2 Experiments and decisions
+
+| Candidate | Cycles per command (mix / limit / cancel) | Decision |
+|---|---|---|
+| Baseline | 171 / 182 / 167 | |
+| Huge pages for the preallocated arrays | 160 / 166 / 152 | **Adopted** as a benchmark environment setting (§10), not in code: requesting huge pages from the engine would need `madvise`, a non-standard dependency. |
+| Identity hash in `IdMap` (`slot = id & mask`) | 141 / 77 / 149 | **Rejected.** The gain exists only because benchmark ids are dense and sequential. Ids with a stride pattern (for example `client << 32 \| seq`, or multiples of the table size) collide and linear probing degrades to O(n). The splitmix64 finalizer stays. |
+| Identity within blocks of 4096 ids, hashed block offset | 7'559 / 12'936 / 3'875 | **Rejected.** Blocks placed at random offsets overlap and merge into long probe runs. |
+| `OrderNode` aligned to 64 bytes | 196 / 187 / 160 | **Rejected.** No gain; the larger pool costs more misses than the aligned nodes save. |
+| Bitmap of occupied levels | not run | **Not justified.** `BookSide::scan_from` does not appear in the profile: with prices concentrated around mid, the next level is a few ticks away. |
+| Prefetching the next passive order | not run | **Not justified for now.** The mix has 0.18 trades per command; only the market-only workload trades often enough for it to matter. |
+
+### 11.3 Remaining candidates
+
+The remaining cost is one random `IdMap` access and one random pool access per command for cancels, modifies and fills, which no change above removes without a premise about ids. Candidates for a later revision, each needing a spec or plan decision first:
+
+- Smaller `IdMap` entries (12 instead of 16 bytes) or a smaller `MAX_ORDERS`, so more of the table fits in cache.
+- Order ids assigned by the engine (sequential by construction), which would make a direct index safe. This changes the command interface and therefore the spec.
 
 ## 12. Traceability
 
