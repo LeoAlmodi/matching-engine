@@ -220,10 +220,35 @@ Quantity accounting (R-MOD-06) needs no stored state in the engine: it is recons
 ## 10. Benchmark
 
 - **Generator.** Commands are generated before measurement into a pre-allocated array, with a fixed seed. Prices are concentrated around a mid price. Initial mix: about 60% limit, 5% market, 30% cancel, 5% modify. Cancels and modifies target ids that are currently resting. The book is pre-filled before measuring.
+- **Workloads** (`bench/generator.hpp`). `MAX_PRICE = 100'000`, mid 50'000. Pre-fill orders rest within 50 ticks of mid without crossing; incoming LIMIT orders reach up to 5 ticks past mid, so some cross. Quantities 1 to 100. Half of the modifies keep price and reduce quantity (keep priority), half move to a new price. `MAX_ORDERS` is the number of NEW commands, so every one is accepted. The generator drives its own engine to know which ids are resting; replay on a fresh engine is identical (R-CMD-04), so the measured stream has no rejections.
+
+| Workload | Mix (limit/market/cancel/modify) | Pre-fill | Measured commands |
+|---|---|---|---|
+| mix | 60/5/30/5 | 10'000 | 1'000'000 |
+| limit, market, cancel, modify | 100% of one type | 250'000 | 200'000 |
 - **Throughput.** Google Benchmark target `bench`, with `CountingSink`, reporting commands per second.
 - **Latency.** A separate executable `latency` (custom `main`, no framework): timestamps each command with `rdtsc` (converted to ns with a calibrated frequency) into a pre-allocated array, then sorts and reports p50, p99, p99.9 and max. Warm-up pass before measuring.
 - **Environment.** Release build with `-O3 -march=native`, process pinned to one core with `taskset`, CPU model and frequency recorded with every result.
-- **Targets.** Not fixed yet. A baseline is measured first, and targets are set from it in a later revision of this plan.
+- **Baseline** (T-19). Intel Core i7-1165G7 (4 cores, TSC 2.8 GHz, turbo up to 4.7 GHz, `powersave` governor), Linux 7.0, GCC 13.3, `-O3 -march=native`, pinned with `taskset -c 2`. Throughput is the median of 5 repetitions; latency is the median of 5 runs.
+
+| Workload | Throughput |
+|---|---|
+| mix | 13.4 M cmd/s |
+| limit | 14.0 M cmd/s |
+| market | 6.3 M cmd/s (about 2 trades per command) |
+| cancel | 12.2 M cmd/s |
+| modify | 9.7 M cmd/s |
+
+| Latency, mix | p50 | p99 | p99.9 | max |
+|---|---|---|---|---|
+| ns | 220 | 510 | 730 | 24'000 to 79'000 |
+
+Latency includes about 13 ns of timestamp cost. The `lfence` around each timestamp keeps commands from overlapping, so p50 is above the mean time per command implied by throughput (75 ns).
+
+- **Targets.** Set from the baseline, on the machine above:
+  - Non-regression: mix throughput ≥ 12 M cmd/s, p99 ≤ 560 ns, p99.9 ≤ 800 ns (baseline with a 10% noise margin). Any change that breaks these is a regression.
+  - Goal for the optimizations in §11: mix throughput ≥ 20 M cmd/s and p99 ≤ 400 ns. Each optimization is kept only if it moves toward this goal.
+  - `max` is not a target: on a laptop with no isolated core it is dominated by interrupts and page faults.
 
 ## 11. Deferred optimizations
 
