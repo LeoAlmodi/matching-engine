@@ -57,7 +57,10 @@ cmake --build build/debug && ctest --test-dir build/debug --output-on-failure
 
 # Release build: use only for benchmarks
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release && ./build/release/bench
+cmake --build build/release
+export GLIBC_TUNABLES=glibc.malloc.hugetlb=1   # huge pages, part of the benchmark method (plan §10)
+taskset -c 2 ./build/release/bench --benchmark_min_warmup_time=1
+taskset -c 2 ./build/release/latency
 ```
 
 Never report performance numbers from the debug build.
@@ -70,8 +73,11 @@ Done:
 - [x] `specs/spec.md` v1 written, with all ambiguities resolved (D-01 to D-22).
 - [x] `specs/plan.md` written.
 - [x] `specs/tasks.md` written (T-01 to T-20).
+- [x] v1 implemented: T-01 to T-20 done. 166 tests pass under ASan + UBSan, 52/52 requirements covered.
+- [x] Benchmark baseline recorded in `specs/plan.md` §10 and `README.md`: mix 13.4 M cmd/s, latency p50 220 ns, p99 510 ns, p99.9 730 ns (i7-1165G7).
+- [x] T-21: profiled the engine (memory bound on the `IdMap`), adopted huge pages as a benchmark environment setting: mix 14.9 M cmd/s, p50 206 ns, p99 483 ns, p99.9 694 ns. Rejected candidates and the reasons are in plan §11.
 
-Next: implement `specs/tasks.md` in order, starting at the first unchecked task. Per-task progress is tracked in the Status section of `specs/tasks.md`; update it when a task is done.
+Next: the remaining candidates in `specs/plan.md` §11.3 need a spec or plan decision before any code. Otherwise, v2. Any optimization is its own task with before and after numbers measured as in plan §10 and is kept only if it moves toward the targets there. Per-task progress is tracked in the Status section of `specs/tasks.md`; update it when a task is done.
 
 ## Future versions
 

@@ -4,7 +4,7 @@ A limit order book matching engine for a single instrument, written in C++20.
 
 It accepts limit and market orders, cancels and modifies, matches them with price-time priority (FIFO within each price level), supports partial executions and reports every outcome as an event. It runs on a single thread, has no dynamic allocation while it processes orders, and depends only on the standard library.
 
-On an Intel Core i7-1165G7 laptop it processes **13.4 million commands per second** on a realistic mix. Per-command latency is **220 ns at p50, 510 ns at p99 and 730 ns at p99.9**.
+On an Intel Core i7-1165G7 laptop it processes **14.9 million commands per second** on a realistic mix. Per-command latency is **206 ns at p50, 483 ns at p99 and 694 ns at p99.9**.
 
 ## Spec-driven development
 
@@ -41,11 +41,12 @@ python3 tools/spec_coverage.py
 # Release build: use it only for benchmarks
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release
-taskset -c 2 ./build/release/bench     # throughput
-taskset -c 2 ./build/release/latency   # per-command latency
+export GLIBC_TUNABLES=glibc.malloc.hugetlb=1   # huge pages for the engine's tables
+taskset -c 2 ./build/release/bench --benchmark_min_warmup_time=1   # throughput
+taskset -c 2 ./build/release/latency                               # per-command latency
 ```
 
-`taskset` pins the process to one core. The Release build uses `-O3 -march=native`; pass `-DME_NATIVE=OFF` to build without `-march=native`.
+`taskset` pins the process to one core. The glibc tunable backs large allocations with transparent huge pages, which removes almost all TLB misses (see Performance work below); the engine itself uses only the standard library. The Release build uses `-O3 -march=native`; pass `-DME_NATIVE=OFF` to build without `-march=native`.
 
 ## Usage
 
@@ -98,23 +99,37 @@ All memory is allocated in the constructor. Commands never throw: every failure 
 
 ## Benchmark results
 
-Release build, `-O3 -march=native`, pinned to one core. Intel Core i7-1165G7 (TSC 2.8 GHz, turbo up to 4.7 GHz, `powersave` governor), Linux 7.0, GCC 13.3. Throughput is the median of 5 repetitions; latency the median of 5 runs.
+Release build, `-O3 -march=native`, pinned to one core, huge pages enabled, with warm-up. Intel Core i7-1165G7 (TSC 2.8 GHz, turbo up to 4.7 GHz, `powersave` governor), Linux 7.0, GCC 13.3. Throughput is the median of 5 repetitions; latency the median of 5 runs. In parentheses: the same build on 4 KB pages, measured in the same session.
 
 The commands are generated before measurement from a fixed seed, with prices concentrated around a mid price, and the book is pre-filled. Cancels and modifies always target resting orders, so the measured stream has no rejections.
 
 | Workload | Throughput |
 |---|---|
-| mix (60% limit, 5% market, 30% cancel, 5% modify), 1M commands | 13.4 M cmd/s |
-| limit only | 14.0 M cmd/s |
-| market only (about 2 trades per command) | 6.3 M cmd/s |
-| cancel only | 12.2 M cmd/s |
-| modify only | 9.7 M cmd/s |
+| mix (60% limit, 5% market, 30% cancel, 5% modify), 1M commands | 14.9 M cmd/s (12.9) |
+| limit only | 15.4 M cmd/s (14.0) |
+| market only (about 2 trades per command) | 6.7 M cmd/s (6.1) |
+| cancel only | 13.5 M cmd/s (11.7) |
+| modify only | 10.5 M cmd/s (9.2) |
 
 | Per-command latency, mix | p50 | p99 | p99.9 |
 |---|---|---|---|
-| ns | 220 | 510 | 730 |
+| ns | 206 (219) | 483 (511) | 694 (733) |
 
-Latency is measured with `rdtsc` around each command, fenced with `lfence`, and includes about 13 ns of timestamp cost. The fences stop consecutive commands from overlapping, so p50 is above the 75 ns average per command implied by throughput. Targets and method are in [`specs/plan.md`](specs/plan.md) §10.
+Latency is measured with `rdtsc` around each command, fenced with `lfence`, and includes about 13 ns of timestamp cost. The fences stop consecutive commands from overlapping, so p50 is above the 67 ns average per command implied by throughput. Targets and method are in [`specs/plan.md`](specs/plan.md) §10.
+
+### Performance work
+
+Optimizations follow the same rule as features: evidence first, then a plan change, then the task. Hardware counters read around the measured stream only show the engine is memory bound: IPC is 0.5 to 0.9, and about one LLC miss and one TLB miss per command come from the order-id hash table (32 MB at one million orders, against a 12 MB L3). Sampling puts 45% to 57% of cycles on its first probe.
+
+| Candidate | Result | Decision |
+|---|---|---|
+| Huge pages | -7% to -9% cycles, +10% to +16% throughput | adopted, as an environment setting |
+| Identity hash for order ids | -58% cycles on limit orders, but O(n) probing for strided ids | rejected: robustness first |
+| Hashed blocks of sequential ids | 40x slower: overlapping blocks form long probe runs | rejected |
+| 64-byte aligned order nodes | +14% cycles on the mix | rejected |
+| Bitmap of price levels, prefetch in matching | not visible in the profile | not justified |
+
+The full profile and the reasoning for each decision are in [`specs/plan.md`](specs/plan.md) §11.
 
 ## Requirement coverage
 
