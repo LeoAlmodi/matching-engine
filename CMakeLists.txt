@@ -39,11 +39,28 @@ gtest_discover_tests(tests)
 # executable so all of it, including the header-only engine and test support, is optimized even in
 # the sanitized debug build (sanitizers and asserts stay on). Inline functions are shared across
 # translation units, so optimizing only some files of one executable would not be reliable.
-add_executable(tests_random tests/test_random.cpp tests/test_differential.cpp)
-target_include_directories(tests_random PRIVATE tests)
+add_executable(tests_random tests/test_random.cpp tests/test_differential.cpp
+  tests/test_bench_generator.cpp)
+target_include_directories(tests_random PRIVATE tests bench)
 target_compile_options(tests_random PRIVATE -O2)
 target_link_libraries(tests_random PRIVATE me GTest::gtest_main)
 gtest_discover_tests(tests_random DISCOVERY_TIMEOUT 30)
 
-add_executable(bench bench/bench_smoke.cpp)
-target_link_libraries(bench PRIVATE me benchmark::benchmark_main)
+# Plan §10: benchmarks are built for the machine they run on.
+option(ME_NATIVE "Build the library and benchmarks with -march=native in Release" ON)
+if(ME_NATIVE AND CMAKE_BUILD_TYPE STREQUAL "Release")
+  target_compile_options(me PRIVATE -march=native)
+endif()
+
+add_executable(bench bench/bench_throughput.cpp)
+target_link_libraries(bench PRIVATE me benchmark::benchmark)
+
+add_executable(latency bench/latency.cpp)
+target_link_libraries(latency PRIVATE me)
+
+foreach(target bench latency)
+  target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  if(ME_NATIVE AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(${target} PRIVATE -march=native)
+  endif()
+endforeach()
